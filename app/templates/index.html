@@ -399,10 +399,19 @@
                         Tracks net daily battery consumption speed (%/24h). Flat baseline (~12-15%) indicates healthy cell efficiency; upward slope (>25%) alerts to battery wear or background firmware drain bugs.
                     </p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <span class="badge-tag tag-emerald" style="font-size: 0.7rem;">🟢 &lt;16%/d Healthy</span>
-                    <span class="badge-tag tag-amber" style="font-size: 0.7rem;">🟡 16-25%/d Wear</span>
-                    <span class="badge-tag tag-rose" style="font-size: 0.7rem;">🔴 &gt;25%/d Degraded</span>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                        <span class="badge-tag tag-emerald" style="font-size: 0.7rem;">🟢 &lt;16%/d Healthy</span>
+                        <span class="badge-tag tag-amber" style="font-size: 0.7rem;">🟡 16-25%/d Wear</span>
+                        <span class="badge-tag tag-rose" style="font-size: 0.7rem;">🔴 &gt;25%/d Degraded</span>
+                    </div>
+                    <select id="drain-days-select" onchange="fetchDrainRateHistory()" class="select-dropdown">
+                        <option value="7">7 Days</option>
+                        <option value="14">14 Days</option>
+                        <option value="30" selected>30 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="365">1 Year</option>
+                    </select>
                 </div>
             </div>
             <div class="chart-wrapper" style="height: 260px;">
@@ -770,10 +779,12 @@
                     optionsHTML += `<option value="custom">Custom Range...</option>`;
                     
                     select.innerHTML = optionsHTML;
-                    if (Array.from(select.options).some(o => o.value === currentVal)) {
+                    if (currentVal && currentVal !== "custom" && Array.from(select.options).some(o => o.value === currentVal)) {
                         select.value = currentVal;
+                    } else if (Array.from(select.options).some(o => o.value === "30")) {
+                        select.value = "30";
                     } else {
-                        select.value = select.options[select.options.length - 1].value;
+                        select.value = select.options[0].value;
                     }
                 } else {
                     actRow.classList.add("hidden");
@@ -869,20 +880,9 @@
         }
 
         async function fetchDrainRateHistory() {
-            const daysSelect = document.getElementById("history-days-select").value;
-            let days = 14;
-            let url = activeRingId ? `/api/battery/drain_rate_history?ring_id=${activeRingId}` : `/api/battery/drain_rate_history?`;
-            
-            if (daysSelect === "custom") {
-                const startDate = document.getElementById("custom-start-date").value;
-                const endDate = document.getElementById("custom-end-date").value;
-                if (!startDate || !endDate) return;
-                days = Math.max(1, Math.floor((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
-                url += `&days=${days}`;
-            } else {
-                days = daysSelect;
-                url += `&days=${daysSelect}`;
-            }
+            const select = document.getElementById("drain-days-select");
+            const days = select ? select.value : 30;
+            let url = activeRingId ? `/api/battery/drain_rate_history?ring_id=${activeRingId}&days=${days}` : `/api/battery/drain_rate_history?days=${days}`;
 
             try {
                 const res = await fetch(url);
