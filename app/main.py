@@ -687,13 +687,22 @@ async def get_drain_rate_history(
     for log in logs:
         logs_by_date[log.timestamp.strftime("%Y-%m-%d")].append(log)
 
+    first_log = logs[0] if logs else None
+    if first_log:
+        first_date = first_log.timestamp.date()
+        today_date = now.date()
+        actual_days = (today_date - first_date).days + 1
+        days_to_generate = min(days, max(1, actual_days))
+    else:
+        days_to_generate = days
+
     daily_series = []
     baseline_fallback = 14.3
 
-    for i in range(days - 1, -1, -1):
-        target_date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
-        dt_obj = now - timedelta(days=i)
-        display_date = dt_obj.strftime("%b %d")
+    for i in range(days_to_generate - 1, -1, -1):
+        target_dt = now - timedelta(days=i)
+        target_date = target_dt.strftime("%Y-%m-%d")
+        display_date = target_dt.strftime("%b %d")
         
         day_logs = logs_by_date.get(target_date, [])
         calculated_rate = None
