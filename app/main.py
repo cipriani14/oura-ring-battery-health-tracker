@@ -622,6 +622,116 @@ async def get_battery_history(ring_id: Optional[int] = Query(None), days: int = 
     }
 
 
+@app.get("/api/battery/drain_rate_history")
+async def get_drain_rate_history(
+    ring_id: Optional[int] = Query(None),
+    days: int = Query(14, ge=1, le=365),
+    db: Session = Depends(get_db)
+):
+    """Provides daily calculated battery drain rate (%/day) time series over N days."""
+    if ring_id:
+        ring = db.query(RingDevice).filter(RingDevice.id == ring_id, RingDevice.is_active == True).first()
+    else:
+        ring = db.query(RingDevice).filter(RingDevice.is_active == True).first()
+
+    now = datetime.utcnow()
+
+    if not ring:
+        # Generate clean synthetic daily drain rate series for mock view
+        daily_series = []
+        base_rate = 14.0
+        for i in range(days - 1, -1, -1):
+            dt = now - timedelta(days=i)
+            day_str = dt.strftime("%Y-%m-%d")
+            noise = round(((days - i) * 0.35) % 3.2 - 1.2, 1)
+            rate = round(max(9.0, min(32.0, base_rate + noise)), 1)
+            
+            if rate <= 16.0:
+                status = "Healthy"
+            elif rate <= 25.0:
+                status = "Moderate Wear"
+            else:
+                status = "Degraded"
+
+            daily_series.append({
+                "date": day_str,
+                "display_date": dt.strftime("%b %d"),
+                "drain_rate_per_day": rate,
+                "est_days_runtime": round(100.0 / rate, 1),
+                "status": status
+            })
+        return {"daily_drain": daily_series, "is_mock": True}
+
+    cutoff = now - timedelta(days=days)
+    logs = db.query(BatteryLog).filter(
+        BatteryLog.ring_id == ring.id,
+        BatteryLog.timestamp >= cutoff,
+        BatteryLog.battery_level > 0
+    ).order_by(BatteryLog.timestamp.asc()).all()
+
+    if not logs:
+        daily_series = []
+        for i in range(days - 1, -1, -1):
+            dt = now - timedelta(days=i)
+            daily_series.append({
+                "date": dt.strftime("%Y-%m-%d"),
+                "display_date": dt.strftime("%b %d"),
+                "drain_rate_per_day": 14.3,
+                "est_days_runtime": 7.0,
+                "status": "Healthy"
+            })
+        return {"daily_drain": daily_series, "is_mock": True}
+
+    from collections import defaultdict
+    logs_by_date = defaultdict(list)
+    for log in logs:
+        logs_by_date[log.timestamp.strftime("%Y-%m-%d")].append(log)
+
+    daily_series = []
+    baseline_fallback = 14.3
+
+    for i in range(days - 1, -1, -1):
+        target_date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+        dt_obj = now - timedelta(days=i)
+        display_date = dt_obj.strftime("%b %d")
+        
+        day_logs = logs_by_date.get(target_date, [])
+        calculated_rate = None
+
+        if len(day_logs) >= 2:
+            non_charge_logs = [l for l in day_logs if not l.is_charging and l.battery_status != "charging"]
+            if len(non_charge_logs) >= 2:
+                first_log = non_charge_logs[0]
+                last_log = non_charge_logs[-1]
+                hours_diff = (last_log.timestamp - first_log.timestamp).total_seconds() / 3600.0
+                level_diff = first_log.battery_level - last_log.battery_level
+                
+                if hours_diff >= 1.0 and level_diff > 0:
+                    calculated_rate = round((level_diff / hours_diff) * 24.0, 1)
+
+        if calculated_rate is None:
+            calculated_rate = baseline_fallback
+
+        baseline_fallback = calculated_rate
+
+        if calculated_rate <= 16.0:
+            status = "Healthy"
+        elif calculated_rate <= 25.0:
+            status = "Moderate Wear"
+        else:
+            status = "Degraded"
+
+        daily_series.append({
+            "date": target_date,
+            "display_date": display_date,
+            "drain_rate_per_day": calculated_rate,
+            "est_days_runtime": round(100.0 / calculated_rate, 1) if calculated_rate > 0 else 7.0,
+            "status": status
+        })
+
+    return {"daily_drain": daily_series, "is_mock": False}
+
+
 @app.get("/api/battery/charges")
 async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
     if ring_id:

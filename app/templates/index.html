@@ -387,6 +387,29 @@
 
         </div>
 
+        <!-- Section 2B: Daily Drain Rate (%/Day) Line Graph -->
+        <div class="card" style="margin-top: 1.5rem;">
+            <div class="chart-header-row">
+                <div>
+                    <h2 class="section-title">
+                        <svg class="icon-inline" style="color: var(--blue-400);" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+                        Daily Battery Drain Rate Trend (% / Day)
+                    </h2>
+                    <p id="drain-chart-subtext" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Tracks net daily battery consumption speed (%/24h). Flat baseline (~12-15%) indicates healthy cell efficiency; upward slope (>25%) alerts to battery wear or background firmware drain bugs.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span class="badge-tag tag-emerald" style="font-size: 0.7rem;">🟢 &lt;16%/d Healthy</span>
+                    <span class="badge-tag tag-amber" style="font-size: 0.7rem;">🟡 16-25%/d Wear</span>
+                    <span class="badge-tag tag-rose" style="font-size: 0.7rem;">🔴 &gt;25%/d Degraded</span>
+                </div>
+            </div>
+            <div class="chart-wrapper" style="height: 260px;">
+                <canvas id="drainRateLineChart"></canvas>
+            </div>
+        </div>
+
         <!-- Section 3: Recharge Cycles & History Table -->
         <div class="card">
             <div class="chart-header-row" style="margin-bottom: 0.75rem;">
@@ -573,6 +596,7 @@
 
     <script>
         let batteryChart = null;
+        let drainRateChart = null;
         let activeRingId = null;
         let currentRingsList = [];
         let selectedNewEmoji = '💍';
@@ -633,11 +657,12 @@
             }
         }
 
-        async function refreshBatteryData() {
+         function refreshBatteryData() {
             fetchMetrics();
             fetchBatteryHistory();
+            fetchDrainRateHistory();
             fetchCharges();
-            fetchRings();
+            fetchMultiRingComparison();
         }
 
         async function triggerBackfill() {
@@ -775,6 +800,7 @@
                 document.getElementById("custom-start-date").value = "";
                 document.getElementById("custom-end-date").value = "";
                 fetchBatteryHistory();
+                fetchDrainRateHistory();
                 fetchCharges();
             }
         }
@@ -784,6 +810,7 @@
             const end = document.getElementById("custom-end-date").value;
             if (start && end) {
                 fetchBatteryHistory();
+                fetchDrainRateHistory();
                 fetchCharges();
             } else {
                 showToast("Please select both a start and end date.");
@@ -838,6 +865,46 @@
                 }
             } catch (e) {
                 console.error("Error fetching battery history:", e);
+            }
+        }
+
+        async function fetchDrainRateHistory() {
+            const daysSelect = document.getElementById("history-days-select").value;
+            let days = 14;
+            let url = activeRingId ? `/api/battery/drain_rate_history?ring_id=${activeRingId}` : `/api/battery/drain_rate_history?`;
+            
+            if (daysSelect === "custom") {
+                const startDate = document.getElementById("custom-start-date").value;
+                const endDate = document.getElementById("custom-end-date").value;
+                if (!startDate || !endDate) return;
+                days = Math.max(1, Math.floor((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+                url += `&days=${days}`;
+            } else {
+                days = daysSelect;
+                url += `&days=${daysSelect}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const daily = data.daily_drain || [];
+
+                const labels = daily.map(d => d.display_date);
+                const rates = daily.map(d => d.drain_rate_per_day);
+
+                if (drainRateChart) {
+                    drainRateChart.data.labels = labels;
+                    drainRateChart.data.datasets[0].data = rates;
+                    
+                    if (parseInt(days) > 14) {
+                        drainRateChart.data.datasets[0].pointRadius = 2.5;
+                    } else {
+                        drainRateChart.data.datasets[0].pointRadius = 4;
+                    }
+                    drainRateChart.update();
+                }
+            } catch (e) {
+                console.error("Error fetching drain rate history:", e);
             }
         }
 
@@ -924,6 +991,61 @@
                         }
                     }
                 });
+
+                const drainCanvas = document.getElementById("drainRateLineChart");
+                if (drainCanvas) {
+                    const drainCtx = drainCanvas.getContext("2d");
+                    const drainGradient = drainCtx.createLinearGradient(0, 0, 0, 250);
+                    drainGradient.addColorStop(0, 'rgba(96, 165, 250, 0.35)');
+                    drainGradient.addColorStop(1, 'rgba(96, 165, 250, 0.0)');
+
+                    drainRateChart = new Chart(drainCtx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [{
+                                label: 'Drain Rate (%/Day)',
+                                data: [],
+                                borderColor: '#60a5fa',
+                                borderWidth: 2.5,
+                                backgroundColor: drainGradient,
+                                fill: true,
+                                tension: 0.35,
+                                pointRadius: 4,
+                                pointHoverRadius: 7,
+                                pointBackgroundColor: '#60a5fa'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const val = context.parsed.y;
+                                            const daysLeft = val > 0 ? (100 / val).toFixed(1) : 7.0;
+                                            return `Daily Drain Rate: ${val}% / day (~${daysLeft}d total runtime)`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    min: 0,
+                                    max: 40,
+                                    grid: { color: '#1e293b' },
+                                    ticks: {
+                                        color: '#94a3b8',
+                                        callback: function(val) { return val + '%/d'; }
+                                    }
+                                },
+                                x: { grid: { color: '#0f172a' }, ticks: { color: '#94a3b8' } }
+                            }
+                        }
+                    });
+                }
             }
         }
 
