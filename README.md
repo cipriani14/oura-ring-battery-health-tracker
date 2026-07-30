@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Tailwind_CSS-3.0-38BDF8?logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
 </p>
 
-A specialized, lightweight web application built to monitor, analyze, and diagnose **Oura Ring battery health, discharge rates, recharge cycles, and cell degradation metrics**.
+A specialized, lightweight web application built to monitor, analyze, and diagnose **Oura Ring battery health, discharge rates, and recharge cycles**. Yes, this was vibe-coded. No, I don't care if you hate me for it. 
 
 ---
 
