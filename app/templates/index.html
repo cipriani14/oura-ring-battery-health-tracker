@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oura Ring Battery & Power Diagnostics</title>
+    
+    <!-- Local Static CSS Link -->
+    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Embedded Fallback Design System -->
+    <style>
+        :root {
+            --bg-main: #090d16;
+            --bg-card: #0f172a;
+            --bg-card-hover: #1e293b;
+            --bg-input: #1e293b;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --teal-400: #2dd4bf;
+            --teal-500: #14b8a6;
+            --emerald-400: #34d399;
+            --emerald-500: #10b981;
+            --amber-400: #fbbf24;
+            --rose-400: #f87171;
+            --rose-500: #ef4444;
+            --blue-400: #60a5fa;
+            --indigo-400: #818cf8;
+            --purple-400: #c084fc;
+            --cyan-400: #22d3ee;
+            --stealth-400: #94a3b8;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: var(--bg-main); color: var(--text-primary); font-family: var(--font-sans); line-height: 1.5; min-height: 100vh; }
+        
+        .hidden { display: none !important; }
+
+        .app-header { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 40; }
+        .header-container { max-width: 1280px; margin: 0 auto; padding: 0 1.5rem; height: 4.5rem; display: flex; align-items: center; justify-content: space-between; }
+        .brand-section { display: flex; align-items: center; gap: 0.875rem; }
+        .brand-icon { width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; background: linear-gradient(135deg, var(--teal-500), var(--emerald-500)); display: flex; align-items: center; justify-content: center; color: #090d16; }
+        .brand-title { font-size: 1.125rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+        .version-tag { font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 0.375rem; background: rgba(45, 212, 191, 0.15); color: var(--teal-400); border: 1px solid rgba(45, 212, 191, 0.25); }
+        .brand-subtitle { font-size: 0.75rem; color: var(--text-secondary); }
+        .header-controls { display: flex; align-items: center; gap: 0.65rem; }
+
+        .ring-select { background: #1e293b; border: 1px solid rgba(45, 212, 191, 0.3); color: var(--teal-400); font-weight: 700; font-size: 0.85rem; padding: 0.45rem 0.85rem; border-radius: 0.625rem; outline: none; cursor: pointer; }
+        .ring-select:hover { border-color: var(--teal-400); }
+
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease; }
+        .btn-secondary { background: var(--bg-card-hover); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: #334155; }
+        .btn-primary { background: var(--teal-400); color: #090d16; font-weight: 700; }
+        .btn-primary:hover { background: #5eead4; }
+        .btn-danger { background: rgba(248, 113, 113, 0.15); color: var(--rose-400); border: 1px solid rgba(248, 113, 113, 0.3); }
+        .btn-danger:hover { background: rgba(248, 113, 113, 0.25); }
+        .btn-icon { padding: 0.5rem; background: transparent; color: var(--text-secondary); border-radius: 0.5rem; border: 1px solid transparent; }
+        .btn-icon:hover { color: #fff; background: var(--bg-card-hover); }
+
+        .main-container { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 2rem; }
+        
+        .alert-banner { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 0.875rem; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; color: #fde68a; font-size: 0.875rem; }
+
+        .grid-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+        .grid-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+        @media (max-width: 1024px) { .grid-charts { grid-template-columns: 1fr; } }
+
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 1.25rem; padding: 1.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); position: relative; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .card-title-sm { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .card-icon-wrapper { padding: 0.5rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; }
+        .icon-teal { background: rgba(45, 212, 191, 0.12); color: var(--teal-400); }
+        .icon-emerald { background: rgba(16, 185, 129, 0.12); color: var(--emerald-400); }
+        .icon-blue { background: rgba(96, 165, 250, 0.12); color: var(--blue-400); }
+        .icon-indigo { background: rgba(129, 140, 248, 0.12); color: var(--indigo-400); }
+
+        .card-metric-value { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .metric-number { font-size: 2.25rem; font-weight: 800; color: #fff; line-height: 1; }
+        .metric-unit { font-size: 1.125rem; font-weight: 700; color: var(--text-secondary); }
+
+        .progress-track { width: 100%; background: #1e293b; border-radius: 9999px; height: 0.625rem; overflow: hidden; margin-bottom: 0.75rem; }
+        .progress-fill { height: 100%; border-radius: 9999px; background: var(--teal-400); transition: width 0.5s ease; }
+        .progress-fill.low-battery { background: var(--rose-500); animation: pulse-low 1.5s infinite; }
+
+        @keyframes pulse-low {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .card-footer-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
+
+        .chart-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+        .section-title { font-size: 1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+        .select-dropdown { background: var(--bg-card-hover); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.75rem; border-radius: 0.5rem; padding: 0.35rem 0.75rem; outline: none; }
+        .chart-wrapper { position: relative; height: 20rem; width: 100%; }
+
+        .breakdown-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+        .breakdown-box { background: #090d16; border: 1px solid var(--border-color); border-radius: 0.875rem; padding: 1rem; font-size: 0.75rem; }
+        .breakdown-box-header { display: flex; justify-content: space-between; font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem; }
+        .breakdown-desc { color: var(--text-secondary); line-height: 1.4; }
+
+        .table-wrapper { overflow-x: auto; margin-top: 1rem; }
+        .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.75rem; }
+        .data-table th { background: #090d16; color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); }
+        .data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+
+        .badge-tag { padding: 0.15rem 0.5rem; border-radius: 0.375rem; font-weight: 600; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+        .tag-rose { background: rgba(248, 113, 113, 0.15); color: var(--rose-400); border: 1px solid rgba(248, 113, 113, 0.25); }
+        .tag-emerald { background: rgba(52, 211, 153, 0.15); color: var(--emerald-400); border: 1px solid rgba(52, 211, 153, 0.25); }
+        .tag-amber { background: rgba(251, 191, 36, 0.15); color: var(--amber-400); border: 1px solid rgba(251, 191, 36, 0.25); }
+        .tag-blue { background: rgba(96, 165, 250, 0.15); color: var(--blue-400); border: 1px solid rgba(96, 165, 250, 0.25); }
+
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.85); backdrop-filter: blur(8px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-content { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 1.25rem; max-width: 500px; width: 100%; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 1.25rem; }
+        .input-field { width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.625rem 0.85rem; color: #fff; font-size: 0.875rem; outline: none; }
+        .modal-error-alert { background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.3); color: var(--rose-400); font-size: 0.75rem; padding: 0.75rem; border-radius: 0.5rem; display: flex; align-items: flex-start; gap: 0.5rem; }
+
+        /* Emoji Grid & Color Picker */
+        .emoji-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
+        .emoji-btn { width: 2.25rem; height: 2.25rem; font-size: 1.125rem; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 0.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+        .emoji-btn:hover, .emoji-btn.active { border-color: var(--teal-400); background: rgba(45, 212, 191, 0.15); transform: scale(1.1); }
+
+        .color-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
+        .color-btn { padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 600; border-radius: 0.375rem; border: 1px solid var(--border-color); cursor: pointer; background: var(--bg-input); color: var(--text-secondary); transition: all 0.15s ease; }
+        .color-btn.active { border-color: #fff; color: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.2); }
+
+        /* Settings Tabs */
+        .settings-nav { display: flex; border-bottom: 1px solid var(--border-color); gap: 1rem; margin-bottom: 0.5rem; }
+        .settings-tab-btn { padding: 0.5rem 0.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        .settings-tab-btn.active { color: var(--teal-400); border-bottom-color: var(--teal-400); }
+
+        .toast { position: fixed; top: 5rem; right: 1.5rem; z-index: 50; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: var(--emerald-400); padding: 0.75rem 1.25rem; border-radius: 0.75rem; font-size: 0.75rem; font-weight: 600; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); display: flex; align-items: center; gap: 0.5rem; }
+
+        /* Interactive Info Tooltip */
+        .info-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; padding: 0.1rem; border-radius: 50%; transition: color 0.2s ease; }
+        .info-btn:hover { color: var(--teal-400); }
+
+        .tooltip-popover {
+            position: absolute;
+            top: 2.75rem;
+            left: 1rem;
+            right: 1rem;
+            z-index: 30;
+            background: #0f172a;
+            border: 1px solid rgba(45, 212, 191, 0.3);
+            border-radius: 0.875rem;
+            padding: 1rem;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .tooltip-header { display: flex; align-items: center; justify-content: space-between; font-weight: 700; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 0.35rem; }
+
+        svg.icon-inline { width: 1.25rem; height: 1.25rem; stroke-width: 2; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+
+    <!-- Chart.js for smooth curve rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand-section">
+                <div class="brand-icon">
+                    <svg class="icon-inline" style="width: 1.5rem; height: 1.5rem;" viewBox="0 0 24 24"><path d="M22 11v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path><path d="M6 7v10"></path><path d="M10 7v10"></path><path d="M14 7v10"></path></svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">
+                        Oura Battery Diagnostics
+                    </h1>
+                    <p class="brand-subtitle">Battery Life, Health Index & Discharge Rate Analytics</p>
+                </div>
+            </div>
+
+            <div class="header-controls">
+                <!-- Ring Selector Dropdown -->
+                <select id="active-ring-select" onchange="onRingSelectionChange()" class="ring-select">
+                    <option value="">Loading rings...</option>
+                </select>
+
+                <button onclick="triggerBackfill()" class="btn btn-secondary" title="Sync & Backfill Full History">
+                    🔄 Sync History
+                </button>
+
+                <button onclick="openAddRingModal()" class="btn btn-primary">
+                    + Add Ring
+                </button>
+
+                <button onclick="openSettingsModal()" class="btn btn-secondary">
+                    ⚙️ Settings
+                </button>
+
+                <button onclick="refreshBatteryData()" class="btn-icon" title="Refresh Data">
+                    <svg class="icon-inline" style="width: 1.1rem; height: 1.1rem;" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path><path d="M3 21v-5h5"></path></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+
+        <!-- Toast Alert Notification -->
+        <div id="toast-notification" class="toast hidden">
+            <svg class="icon-inline" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span id="toast-message">Success</span>
+        </div>
+
+        <!-- Mock Data Banner -->
+        <div id="mock-banner" class="alert-banner hidden">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <svg class="icon-inline" style="color: var(--amber-400);" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                <span>No live Oura Ring registered. Add your <strong>Personal Access Token</strong> to track your ring or your wife's ring.</span>
+            </div>
+            <button onclick="openAddRingModal()" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">+ Add Ring</button>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="grid-metrics">
+
+            <!-- Card 1: Current Charge Level -->
+            <div class="card" id="card-battery-container">
+                <div class="card-header">
+                    <span class="card-title-sm"><span id="active-ring-emoji-tag">💍</span> Current Battery</span>
+                    <div class="card-icon-wrapper icon-teal">
+                        <svg class="icon-inline" viewBox="0 0 24 24"><rect width="16" height="10" x="2" y="7" rx="2" ry="2"></rect><line x1="22" x2="22" y1="11" y2="13"></line></svg>
+                    </div>
+                </div>
+                <div class="card-metric-value">
+                    <span id="card-battery-level" class="metric-number">--</span>
+                    <span class="metric-unit">%</span>
+                    <span id="low-battery-alert-badge" class="badge-tag tag-rose hidden">⚠️ Low Battery (&le;25%)</span>
+                </div>
+                <div class="progress-track">
+                    <div id="card-battery-bar" class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="card-footer-info">
+                    <span>State: <strong id="card-battery-state" style="color: #fff;">--</strong></span>
+                    <span id="card-last-sync">Synced: --</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Estimated Battery Remaining -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title-sm">Time Remaining</span>
+                    <div class="card-icon-wrapper icon-emerald">
+                        <svg class="icon-inline" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 16 14"></polyline></svg>
+                    </div>
+                </div>
+                <div class="card-metric-value">
+                    <span id="card-est-days" class="metric-number">--</span>
+                    <span class="metric-unit">days</span>
+                </div>
+                <p id="card-est-hours" style="font-size: 0.75rem; font-weight: 600; color: var(--emerald-400); margin-bottom: 0.35rem;">~-- hours left</p>
+                <p style="font-size: 0.75rem; color: var(--text-muted);">Estimated until 0% based on recent discharge trends.</p>
+            </div>
+
+            <!-- Card 3: Daily Discharge Rate -->
+            <div class="card">
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: 0.35rem;">
+                        <span class="card-title-sm">Daily Drain Rate</span>
+                        <button class="info-btn" onclick="toggleDrainTooltip(event)" title="How is this calculated?">
+                            <svg class="icon-inline" style="width: 0.875rem; height: 0.875rem;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        </button>
+                    </div>
+                    <div class="card-icon-wrapper icon-blue">
+                        <svg class="icon-inline" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+                    </div>
+                </div>
+                <div class="card-metric-value">
+                    <span id="card-drain-rate" class="metric-number">--</span>
+                    <span class="metric-unit">%/day</span>
+                </div>
+                <p id="card-drain-badge" style="font-size: 0.75rem; color: var(--text-secondary);">Oura Standard Target: ~14.3% per day (~7 days life).</p>
+
+                <!-- Tooltip Popover -->
+                <div id="drain-tooltip-popover" class="tooltip-popover hidden">
+                    <div class="tooltip-header">
+                        <strong style="color: var(--teal-400);">Daily Drain Rate Calculation</strong>
+                        <button onclick="toggleDrainTooltip(event)" style="background:none; border:none; color: var(--text-muted); cursor:pointer; font-size: 1rem;">&times;</button>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.4rem; line-height: 1.4;">
+                        <p>• <strong>Standard Reference</strong>: Standard target rate is ~14.3%/day (7 days battery life).</p>
+                        <p>• <strong>Empirical Measurement</strong>: Once the service logs 24+ hours of real battery data for this ring, this rate automatically updates to calculate its <strong>exact real-world drain rate</strong>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 4: Battery Health Index -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title-sm">Battery Health</span>
+                    <div class="card-icon-wrapper icon-indigo">
+                        <svg class="icon-inline" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                </div>
+                <div class="card-metric-value" style="margin-bottom: 0.65rem;">
+                    <span id="card-health-rating" class="metric-number" style="font-size: 1.85rem; color: var(--emerald-400);">--</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.25rem; border-top: 1px solid var(--border-color); padding-top: 0.6rem;">
+                    <p><strong id="card-hardware" style="color: #fff; font-weight: 600;">--</strong></p>
+                    <p>Firmware: <span id="card-firmware" style="color: var(--text-primary);">--</span></p>
+                    <p id="card-activation-row" class="hidden">Activated: <span id="card-activation-date" style="color: var(--text-primary);">--</span></p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Battery Charts Section -->
+        <div class="grid-charts">
+
+            <!-- Chart 1: Discharge Curve -->
+            <div class="card">
+                <div class="chart-header-row">
+                    <div>
+                        <h2 class="section-title">
+                            <svg class="icon-inline" style="color: var(--teal-400);" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            Battery Discharge & Recharge Curve
+                        </h2>
+                        <p id="chart-subtext" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Tracks continuous drain slope and detects charge cycles.</p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div id="custom-date-picker" class="hidden" style="display: flex; gap: 0.35rem; align-items: center; background: rgba(30,41,59,0.5); padding: 0.25rem 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+                            <input type="date" id="custom-start-date" class="input-field" style="padding: 0.15rem 0.25rem; font-size: 0.8rem; background: transparent; border: none; color: white;">
+                            <span style="color: var(--text-muted); font-size: 0.75rem;">to</span>
+                            <input type="date" id="custom-end-date" class="input-field" style="padding: 0.15rem 0.25rem; font-size: 0.8rem; background: transparent; border: none; color: white;">
+                            <button onclick="applyCustomDateRange()" class="btn btn-primary" style="padding: 0.15rem 0.5rem; font-size: 0.75rem; border-radius: 0.25rem;">Go</button>
+                        </div>
+                        <select id="history-days-select" onchange="onHistoryDaysChange()" class="select-dropdown">
+                            <option value="7">7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="90">90 Days</option>
+                            <option value="365">1 Year (All History)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="batteryCurveChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Health Breakdown -->
+            <div class="card" style="display: flex; flex-direction: column; gap: 1rem;">
+                <h2 class="section-title">
+                    <svg class="icon-inline" style="color: var(--emerald-400);" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m14 9-2 3-2-1"></path></svg>
+                    Power Health Breakdown
+                </h2>
+
+                <div class="breakdown-list">
+                    <div class="breakdown-box">
+                        <div class="breakdown-box-header">
+                            <span>Drain Efficiency:</span>
+                            <span id="health-drain-status" style="color: var(--emerald-400);">Optimal</span>
+                        </div>
+                        <p id="health-drain-desc" class="breakdown-desc">Your ring averages normal battery consumption per 24 hours.</p>
+                    </div>
+
+                    <div class="breakdown-box">
+                        <div class="breakdown-box-header">
+                            <span>Target Baseline:</span>
+                            <span style="color: var(--teal-400);">Auto-Detecting</span>
+                        </div>
+                        <p class="breakdown-desc">Ring hardware model, finish, and pairing date are detected automatically from your Oura API callback.</p>
+                    </div>
+
+                    <div class="breakdown-box">
+                        <div class="breakdown-box-header">
+                            <span>Optimization Tip:</span>
+                        </div>
+                        <p class="breakdown-desc">To prolong overall lithium-ion cell life, keep battery levels between 20% and 80% and avoid leaving the ring on charger overnight.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Section 3: Recharge Cycles & History Table -->
+        <div class="card">
+            <div class="chart-header-row" style="margin-bottom: 0.75rem;">
+                <div>
+                    <h2 class="section-title">
+                        <svg class="icon-inline" style="color: var(--amber-400);" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                        Charge Cycles & Recharge Events
+                    </h2>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Recorded charging sessions, charge rates (%/hr), and duration.</p>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                            <th>Start Level</th>
+                            <th>End Level</th>
+                            <th>Duration</th>
+                            <th>Charge Speed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="charge-history-tbody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading charge history...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Add Ring Modal -->
+    <div id="addRingModal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg class="icon-inline" style="color: var(--teal-400);" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3.5"></path></svg>
+                    Register Oura Ring Profile
+                </h3>
+                <button onclick="closeAddRingModal()" class="btn-icon">
+                    <svg class="icon-inline" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+                Enter a custom label (e.g., <strong>Wife's Ring</strong>) and its Oura Personal Access Token from 
+                <a href="https://cloud.ouraring.com/personal-access-tokens" target="_blank" style="color: var(--teal-400); text-decoration: underline;">cloud.ouraring.com</a>.
+            </p>
+
+            <div id="modal-error" class="modal-error-alert hidden">
+                <svg class="icon-inline" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span id="modal-error-text">Error validating token.</span>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Ring Label / Owner Name</label>
+                <input type="text" id="ring-label-input" placeholder="e.g. Wife's Oura Ring" class="input-field">
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Choose Icon / Emoji</label>
+                <div class="emoji-grid" id="new-ring-emoji-grid">
+                    <button class="emoji-btn active" onclick="selectNewEmoji('💍')">💍</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('⚡')">⚡</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('👑')">👑</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('🌸')">🌸</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('🖤')">🖤</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('🐺')">🐺</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('🦁')">🦁</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('💎')">💎</button>
+                    <button class="emoji-btn" onclick="selectNewEmoji('🚀')">🚀</button>
+                </div>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Personal Access Token (OURA_PAT)</label>
+                <input type="password" id="pat-input" placeholder="e.g. OURA_PAT_xxx..." class="input-field">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <button onclick="closeAddRingModal()" class="btn btn-secondary">Cancel</button>
+                <button id="save-ring-btn" onclick="saveNewRing()" class="btn btn-primary">Save & Connect Ring</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-backdrop hidden">
+        <div class="modal-content" style="max-width: 540px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                    ⚙️ Settings & Ring Customization
+                </h3>
+                <button onclick="closeSettingsModal()" class="btn-icon">
+                    <svg class="icon-inline" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <div class="settings-nav">
+                <button class="settings-tab-btn active" onclick="switchSettingsTab('profiles')">💍 Ring Profiles</button>
+                <button class="settings-tab-btn" onclick="switchSettingsTab('export')">📥 CSV & Data Export</button>
+            </div>
+
+            <!-- Tab 1: Ring Profiles -->
+            <div id="tab-profiles" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Select Ring Profile to Edit</label>
+                    <select id="settings-ring-select" onchange="loadSettingsForSelectedRing()" class="input-field">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Ring Custom Name</label>
+                    <input type="text" id="edit-ring-label" class="input-field">
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Choose Emoji Icon</label>
+                    <div class="emoji-grid" id="edit-ring-emoji-grid">
+                        <button class="emoji-btn" onclick="selectEditEmoji('💍')">💍</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('⚡')">⚡</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('👑')">👑</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('🌸')">🌸</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('🖤')">🖤</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('🐺')">🐺</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('🦁')">🦁</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('💎')">💎</button>
+                        <button class="emoji-btn" onclick="selectEditEmoji('🚀')">🚀</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Accent Color Tag</label>
+                    <div class="color-grid" id="edit-ring-color-grid">
+                        <button class="color-btn active" style="background: rgba(45, 212, 191, 0.2); border-color: var(--teal-400); color: var(--teal-400);" onclick="selectColorTag('teal')">Teal</button>
+                        <button class="color-btn" style="background: rgba(52, 211, 153, 0.2); border-color: var(--emerald-400); color: var(--emerald-400);" onclick="selectColorTag('emerald')">Emerald</button>
+                        <button class="color-btn" style="background: rgba(248, 113, 113, 0.2); border-color: var(--rose-400); color: var(--rose-400);" onclick="selectColorTag('rose')">Rose Gold</button>
+                        <button class="color-btn" style="background: rgba(251, 191, 36, 0.2); border-color: var(--amber-400); color: var(--amber-400);" onclick="selectColorTag('amber')">Amber</button>
+                        <button class="color-btn" style="background: rgba(192, 132, 252, 0.2); border-color: var(--purple-400); color: var(--purple-400);" onclick="selectColorTag('purple')">Purple</button>
+                        <button class="color-btn" style="background: rgba(148, 163, 184, 0.2); border-color: var(--stealth-400); color: var(--stealth-400);" onclick="selectColorTag('stealth')">Stealth Grey</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem;">Update Personal Access Token (Optional)</label>
+                    <input type="password" id="edit-pat" placeholder="Leave empty to keep current PAT" class="input-field">
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <button onclick="deleteCurrentRingProfile()" class="btn btn-danger">🗑️ Remove Ring Profile</button>
+                    <button onclick="saveRingSettings()" class="btn btn-primary">Save Profile Changes</button>
+                </div>
+            </div>
+
+            <!-- Tab 2: Export & System -->
+            <div id="tab-export" style="display: none; flex-direction: column; gap: 1.25rem;">
+                <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 0.875rem; padding: 1rem;">
+                    <h4 style="font-size: 0.875rem; font-weight: 700; color: #fff; margin-bottom: 0.35rem;">Historical Backfill Sync</h4>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 1rem;">
+                        Force-sync all historical battery telemetry stored in your Oura Cloud profile since the day your ring was paired.
+                    </p>
+                    <button onclick="triggerBackfill()" class="btn btn-primary">
+                        🔄 Sync Full History Now
+                    </button>
+                </div>
+
+                <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 0.875rem; padding: 1rem;">
+                    <h4 style="font-size: 0.875rem; font-weight: 700; color: #fff; margin-bottom: 0.35rem;">CSV Telemetry Export</h4>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 1rem;">
+                        Download raw battery level logs, timestamps, hardware codes, and firmware versions formatted for Excel / Home Assistant / Grafana.
+                    </p>
+                    <button onclick="exportCsvData()" class="btn btn-primary">
+                        📥 Download Battery Logs CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let batteryChart = null;
+        let activeRingId = null;
+        let currentRingsList = [];
+        let selectedNewEmoji = '💍';
+        let selectedEditEmoji = '💍';
+        let selectedColorTag = 'teal';
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            initChart();
+            await fetchRings();
+            refreshBatteryData();
+            setInterval(refreshBatteryData, 60000);
+        });
+
+        async function fetchRings() {
+            try {
+                const res = await fetch("/api/rings");
+                const data = await res.json();
+                currentRingsList = data.rings || [];
+                const select = document.getElementById("active-ring-select");
+                const mockBanner = document.getElementById("mock-banner");
+
+                if (currentRingsList.length === 0) {
+                    select.innerHTML = `<option value="">No rings added</option>`;
+                    mockBanner.classList.remove("hidden");
+                    activeRingId = null;
+                    return;
+                }
+
+                mockBanner.classList.add("hidden");
+                select.innerHTML = currentRingsList.map(r => `<option value="${r.id}">${r.emoji || '💍'} ${r.label} (${r.battery_level ? r.battery_level + '%' : '--'})</option>`).join("");
+
+                const saved = localStorage.getItem("selected_ring_id");
+                if (saved && currentRingsList.some(r => r.id == saved)) {
+                    activeRingId = parseInt(saved);
+                    select.value = activeRingId;
+                } else {
+                    activeRingId = currentRingsList[0].id;
+                    select.value = activeRingId;
+                }
+            } catch (e) {
+                console.error("Error fetching rings list:", e);
+            }
+        }
+
+        function selectRingDirectly(ringId) {
+            activeRingId = ringId;
+            localStorage.setItem("selected_ring_id", ringId);
+            document.getElementById("active-ring-select").value = ringId;
+            refreshBatteryData();
+        }
+
+        function onRingSelectionChange() {
+            const val = document.getElementById("active-ring-select").value;
+            if (val) {
+                activeRingId = parseInt(val);
+                localStorage.setItem("selected_ring_id", activeRingId);
+                refreshBatteryData();
+            }
+        }
+
+        async function refreshBatteryData() {
+            fetchMetrics();
+            fetchBatteryHistory();
+            fetchCharges();
+            fetchRings();
+        }
+
+        async function triggerBackfill() {
+            if (!activeRingId) return;
+            showToast("Syncing full history from Oura Cloud...");
+            try {
+                const res = await fetch(`/api/rings/${activeRingId}/backfill`, { method: "POST" });
+                const data = await res.json();
+                showToast(`Backfilled ${data.count || 0} historical logs!`);
+                refreshBatteryData();
+            } catch (e) {
+                alert("Failed to backfill history: " + e.message);
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById("toast-notification");
+            const text = document.getElementById("toast-message");
+            text.innerText = msg;
+            toast.classList.remove("hidden");
+            setTimeout(() => { toast.classList.add("hidden"); }, 3500);
+        }
+
+        function toggleDrainTooltip(e) {
+            if (e) e.stopPropagation();
+            const popover = document.getElementById("drain-tooltip-popover");
+            popover.classList.toggle("hidden");
+        }
+
+        async function fetchMetrics() {
+            try {
+                const url = activeRingId ? `/api/battery/metrics?ring_id=${activeRingId}` : "/api/battery/metrics";
+                const res = await fetch(url);
+                const data = await res.json();
+
+                const level = data.battery_level || 85;
+                document.getElementById("card-battery-level").innerText = level;
+                document.getElementById("active-ring-emoji-tag").innerText = data.emoji || '💍';
+                
+                const bar = document.getElementById("card-battery-bar");
+                const alertBadge = document.getElementById("low-battery-alert-badge");
+                bar.style.width = `${level}%`;
+                
+                // LOW BATTERY ALERT THRESHOLD: STRICTLY <= 25%
+                if (level <= 25) {
+                    bar.className = "progress-fill low-battery";
+                    alertBadge.classList.remove("hidden");
+                    alertBadge.style.display = "inline-flex";
+                } else {
+                    bar.className = "progress-fill";
+                    alertBadge.classList.add("hidden");
+                    alertBadge.style.display = "none";
+                    
+                    if (data.color_tag === 'emerald') bar.style.backgroundColor = 'var(--emerald-400)';
+                    else if (data.color_tag === 'rose') bar.style.backgroundColor = 'var(--rose-400)';
+                    else if (data.color_tag === 'amber') bar.style.backgroundColor = 'var(--amber-400)';
+                    else if (data.color_tag === 'purple') bar.style.backgroundColor = 'var(--purple-400)';
+                    else if (data.color_tag === 'stealth') bar.style.backgroundColor = 'var(--stealth-400)';
+                    else bar.style.backgroundColor = 'var(--teal-400)';
+                }
+
+                document.getElementById("card-battery-state").innerText = data.is_charging ? "Charging ⚡" : (data.battery_status || "Normal");
+                
+                document.getElementById("card-est-days").innerText = data.est_days_remaining || '5.8';
+                document.getElementById("card-est-hours").innerText = `~${data.est_hours_remaining || 138} hours remaining`;
+                
+                document.getElementById("card-drain-rate").innerText = data.discharge_rate_per_day || '14.3';
+                
+                const drainBadge = document.getElementById("card-drain-badge");
+                if (data.is_calculated) {
+                    drainBadge.innerHTML = `<span class="badge-tag tag-emerald">Measured Rate</span>`;
+                } else {
+                    drainBadge.innerHTML = `<span class="badge-tag tag-blue">Standard Target (~7d)</span>`;
+                }
+
+                document.getElementById("card-health-rating").innerText = data.battery_health_rating || 'Excellent';
+                document.getElementById("card-hardware").innerText = data.hardware_type || 'Oura Ring';
+                document.getElementById("card-firmware").innerText = data.firmware_version || 'Latest';
+
+                const actRow = document.getElementById("card-activation-row");
+                const actDate = document.getElementById("card-activation-date");
+                if (data.activation_date) {
+                    actDate.innerText = data.activation_date;
+                    actRow.classList.remove("hidden");
+                    
+                    // Update history dropdown based on ring age
+                    const ageDays = Math.max(1, Math.floor((new Date() - new Date(data.activation_date)) / (1000 * 60 * 60 * 24)));
+                    const select = document.getElementById("history-days-select");
+                    const currentVal = select.value;
+                    let optionsHTML = '';
+                    
+                    if (ageDays >= 7) optionsHTML += `<option value="7">7 Days</option>`;
+                    if (ageDays >= 14) optionsHTML += `<option value="14">14 Days</option>`;
+                    if (ageDays >= 30) optionsHTML += `<option value="30">30 Days</option>`;
+                    if (ageDays >= 90) optionsHTML += `<option value="90">90 Days</option>`;
+                    
+                    if (ageDays > 0 && ageDays < 365) {
+                        optionsHTML += `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
+                    } else if (ageDays >= 365) {
+                        optionsHTML += `<option value="365">All History (1 Year+)</option>`;
+                    }
+                    
+                    if (!optionsHTML) optionsHTML = `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
+                    
+                    optionsHTML += `<option value="custom">Custom Range...</option>`;
+                    
+                    select.innerHTML = optionsHTML;
+                    if (Array.from(select.options).some(o => o.value === currentVal)) {
+                        select.value = currentVal;
+                    } else {
+                        select.value = select.options[select.options.length - 1].value;
+                    }
+                } else {
+                    actRow.classList.add("hidden");
+                }
+
+                document.getElementById("health-drain-desc").innerHTML = `Ring <strong>'${data.emoji || '💍'} ${data.label || 'Ring'}'</strong> averages <strong>~${data.discharge_rate_per_day || 14.3}% battery drain per 24 hours</strong>, providing an estimated ${data.est_days_remaining || 5.8} days of active monitoring.`;
+
+                if (data.last_synced) {
+                    const dt = new Date(data.last_synced);
+                    document.getElementById("card-last-sync").innerText = `Synced: ${dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                }
+            } catch (e) {
+                console.error("Error fetching battery metrics:", e);
+            }
+        }
+
+        function onHistoryDaysChange() {
+            const val = document.getElementById("history-days-select").value;
+            const customPicker = document.getElementById("custom-date-picker");
+            if (val === "custom") {
+                customPicker.classList.remove("hidden");
+            } else {
+                customPicker.classList.add("hidden");
+                document.getElementById("custom-start-date").value = "";
+                document.getElementById("custom-end-date").value = "";
+                fetchBatteryHistory();
+                fetchCharges();
+            }
+        }
+
+        function applyCustomDateRange() {
+            const start = document.getElementById("custom-start-date").value;
+            const end = document.getElementById("custom-end-date").value;
+            if (start && end) {
+                fetchBatteryHistory();
+                fetchCharges();
+            } else {
+                showToast("Please select both a start and end date.");
+            }
+        }
+
+        async function fetchBatteryHistory() {
+            const daysSelect = document.getElementById("history-days-select").value;
+            let days = 30;
+            let url = activeRingId ? `/api/battery/history?ring_id=${activeRingId}` : `/api/battery/history?`;
+            
+            if (daysSelect === "custom") {
+                const startDate = document.getElementById("custom-start-date").value;
+                const endDate = document.getElementById("custom-end-date").value;
+                if (!startDate || !endDate) return;
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+                days = Math.max(1, Math.floor((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+            } else {
+                days = daysSelect;
+                url += `&days=${daysSelect}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const history = data.history || [];
+                const subtext = document.getElementById("chart-subtext");
+
+                if (!data.is_mock) {
+                    subtext.innerHTML = `<span class="badge-tag tag-emerald">Live Telemetry Active</span> Loaded ${history.length} historical battery records.`;
+                } else {
+                    subtext.innerText = "Tracks continuous drain slope and detects charge cycles.";
+                }
+
+                const labels = history.map(h => new Date(h.timestamp).toLocaleDateString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}));
+                const levels = history.map(h => h.battery_level);
+
+                if (batteryChart) {
+                    batteryChart.data.labels = labels;
+                    batteryChart.data.datasets[0].data = levels;
+                    
+                    // Hide dots (points) for time ranges longer than 7 days to keep the line sleek
+                    if (parseInt(days) > 7) {
+                        batteryChart.data.datasets[0].pointRadius = 0;
+                        batteryChart.data.datasets[0].pointHoverRadius = 5;
+                    } else {
+                        batteryChart.data.datasets[0].pointRadius = 3.5;
+                        batteryChart.data.datasets[0].pointHoverRadius = 6;
+                    }
+                    
+                    batteryChart.update();
+                }
+            } catch (e) {
+                console.error("Error fetching battery history:", e);
+            }
+        }
+
+        async function fetchCharges() {
+            const daysSelect = document.getElementById("history-days-select").value;
+            let url = activeRingId ? `/api/battery/charges?ring_id=${activeRingId}` : `/api/battery/charges?`;
+            
+            if (daysSelect === "custom") {
+                const startDate = document.getElementById("custom-start-date").value;
+                const endDate = document.getElementById("custom-end-date").value;
+                if (!startDate || !endDate) return;
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+            } else {
+                url += `&days=${daysSelect}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const charges = data.charges || [];
+                const tbody = document.getElementById("charge-history-tbody");
+
+                if (charges.length === 0) {
+                    const msg = !data.is_mock 
+                        ? "No charge cycles recorded since live tracking started today. Place your ring on its charger to log charging duration and speed (%/hr)."
+                        : "No charging cycles logged yet.";
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">${msg}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = charges.map(c => {
+                    const startStr = new Date(c.start_time).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+                    const endStr = c.end_time ? new Date(c.end_time).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'In Progress';
+                    const speedStr = c.charge_speed_pct_per_hr ? `+${c.charge_speed_pct_per_hr}%/hr` : '--';
+                    
+                    return `
+                        <tr>
+                            <td style="font-family: monospace;">${startStr}</td>
+                            <td style="font-family: monospace;">${endStr}</td>
+                            <td><span class="badge-tag tag-rose">${c.start_level}%</span></td>
+                            <td><span class="badge-tag tag-emerald">${c.end_level}%</span></td>
+                            <td style="font-weight: 600;">${c.duration_minutes || '--'} mins</td>
+                            <td style="font-weight: 700; color: var(--amber-400);">${speedStr}</td>
+                        </tr>
+                    `;
+                }).join("");
+            } catch (e) {
+                console.error("Error fetching charge events:", e);
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById("batteryCurveChart").getContext("2d");
+            
+            if (typeof Chart !== "undefined") {
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(45, 212, 191, 0.35)');
+                gradient.addColorStop(1, 'rgba(45, 212, 191, 0.0)');
+
+                batteryChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Battery Level (%)',
+                            data: [],
+                            borderColor: '#2dd4bf',
+                            borderWidth: 2,
+                            backgroundColor: gradient,
+                            fill: true,
+                            cubicInterpolationMode: 'monotone',
+                            pointRadius: 3.5,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#2dd4bf'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                            x: { grid: { color: '#0f172a' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }
+
+        /* EMOJI & COLOR SELECTION LOGIC */
+        function selectNewEmoji(emoji) {
+            selectedNewEmoji = emoji;
+            const btns = document.querySelectorAll("#new-ring-emoji-grid .emoji-btn");
+            btns.forEach(b => b.classList.remove("active"));
+            event.target.classList.add("active");
+        }
+
+        function selectEditEmoji(emoji) {
+            selectedEditEmoji = emoji;
+            const btns = document.querySelectorAll("#edit-ring-emoji-grid .emoji-btn");
+            btns.forEach(b => {
+                if (b.innerText === emoji) b.classList.add("active");
+                else b.classList.remove("active");
+            });
+        }
+
+        function selectColorTag(color) {
+            selectedColorTag = color;
+            const btns = document.querySelectorAll("#edit-ring-color-grid .color-btn");
+            btns.forEach(b => b.classList.remove("active"));
+            event.target.classList.add("active");
+        }
+
+        function openAddRingModal() {
+            document.getElementById("modal-error").classList.add("hidden");
+            document.getElementById("addRingModal").classList.remove("hidden");
+        }
+        function closeAddRingModal() {
+            document.getElementById("addRingModal").classList.add("hidden");
+        }
+
+        function openSettingsModal() {
+            populateSettingsRingSelect();
+            document.getElementById("settingsModal").classList.remove("hidden");
+        }
+        function closeSettingsModal() {
+            document.getElementById("settingsModal").classList.add("hidden");
+        }
+
+        function switchSettingsTab(tab) {
+            const btns = document.querySelectorAll(".settings-tab-btn");
+            btns.forEach(b => b.classList.remove("active"));
+            
+            if (tab === 'profiles') {
+                btns[0].classList.add("active");
+                document.getElementById("tab-profiles").style.display = "flex";
+                document.getElementById("tab-export").style.display = "none";
+            } else {
+                btns[1].classList.add("active");
+                document.getElementById("tab-profiles").style.display = "none";
+                document.getElementById("tab-export").style.display = "flex";
+            }
+        }
+
+        function populateSettingsRingSelect() {
+            const select = document.getElementById("settings-ring-select");
+            select.innerHTML = currentRingsList.map(r => `<option value="${r.id}">${r.emoji || '💍'} ${r.label}</option>`).join("");
+            if (activeRingId) select.value = activeRingId;
+            loadSettingsForSelectedRing();
+        }
+
+        function loadSettingsForSelectedRing() {
+            const ringId = document.getElementById("settings-ring-select").value;
+            const ring = currentRingsList.find(r => r.id == ringId);
+            if (!ring) return;
+
+            document.getElementById("edit-ring-label").value = ring.label || "";
+            document.getElementById("edit-pat").value = "";
+
+            selectEditEmoji(ring.emoji || '💍');
+            selectColorTag(ring.color_tag || 'teal');
+        }
+
+        async function saveRingSettings() {
+            const ringId = document.getElementById("settings-ring-select").value;
+            const label = document.getElementById("edit-ring-label").value.trim();
+            const pat = document.getElementById("edit-pat").value.trim();
+
+            try {
+                const res = await fetch(`/api/rings/${ringId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        label,
+                        emoji: selectedEditEmoji,
+                        color_tag: selectedColorTag,
+                        pat: pat || undefined
+                    })
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.detail || "Failed to update profile.");
+                }
+
+                closeSettingsModal();
+                showToast(`Updated '${label}' profile!`);
+                await fetchRings();
+                refreshBatteryData();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function deleteCurrentRingProfile() {
+            const ringId = document.getElementById("settings-ring-select").value;
+            const ring = currentRingsList.find(r => r.id == ringId);
+            if (!ring) return;
+
+            if (!confirm(`Are you sure you want to remove '${ring.label}'?`)) return;
+
+            try {
+                const res = await fetch(`/api/rings/${ringId}`, { method: "DELETE" });
+                if (!res.ok) throw new Error("Could not delete ring profile.");
+
+                closeSettingsModal();
+                showToast(`Removed '${ring.label}' profile.`);
+                activeRingId = null;
+                localStorage.removeItem("selected_ring_id");
+                await fetchRings();
+                refreshBatteryData();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        function exportCsvData() {
+            const url = activeRingId ? `/api/export/csv?ring_id=${activeRingId}` : "/api/export/csv";
+            window.location.href = url;
+        }
+
+        async function saveNewRing() {
+            const labelInput = document.getElementById("ring-label-input");
+            const patInput = document.getElementById("pat-input");
+            const btn = document.getElementById("save-ring-btn");
+            const errorBox = document.getElementById("modal-error");
+            const errorText = document.getElementById("modal-error-text");
+
+            const label = labelInput.value.trim() || "Oura Ring";
+            const pat = patInput.value.trim();
+
+            if (!pat) {
+                errorText.innerText = "Please enter a valid Oura Personal Access Token.";
+                errorBox.classList.remove("hidden");
+                return;
+            }
+
+            errorBox.classList.add("hidden");
+            btn.disabled = true;
+            btn.innerText = "Validating...";
+
+            try {
+                const res = await fetch("/api/rings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ label, emoji: selectedNewEmoji, pat })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || "Failed to register ring.");
+                }
+
+                labelInput.value = "";
+                patInput.value = "";
+                closeAddRingModal();
+                showToast(`Registered '${label}' with full historical backfill!`);
+                await fetchRings();
+                if (data.ring && data.ring.id) {
+                    selectRingDirectly(data.ring.id);
+                } else {
+                    refreshBatteryData();
+                }
+            } catch (e) {
+                errorText.innerText = e.message || "Could not register ring.";
+                errorBox.classList.remove("hidden");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Save & Connect Ring";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  oura-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oura_ring_tracker
+    restart: unless-stopped
+    ports:
+      - "8899:8000"
+    environment:
+      - OURA_PAT=${OURA_PAT:-}
+      - DATABASE_URL=sqlite:////data/oura_tracker.db
+      - POLL_INTERVAL_MINUTES=60
+      - PORT=8000
+    volumes:
+      - oura_data:/data
+      - ./app:/app/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+
+
+volumes:
+  oura_data:
+    driver: local

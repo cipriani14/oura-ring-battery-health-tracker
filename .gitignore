@@ -1,0 +1,20 @@
+# Environment & Secrets
+.env
+*.env
+
+# SQLite Databases & Data Volumes
+*.db
+*.sqlite
+*.sqlite3
+oura_tracker.db
+
+# Python & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# OS & IDE Files
+.DS_Store
+.vscode/
+.idea/
