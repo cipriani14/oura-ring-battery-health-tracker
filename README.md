@@ -23,6 +23,7 @@ A specialized, lightweight web application built to monitor, analyze, and diagno
 ## ✨ Features
 
 - **⚡ Real-Time Battery State**: Displays live battery percentage, charging state (`normal`, `low`, `charging`, `full`), hardware generation, and firmware version.
+- **📉 Daily Drain Rate Line Graph (%/day)**: Dedicated Chart.js line graph plotting net daily power consumption over 7, 14, 30, or 90 days with color-coded baseline bands (Healthy <16%, Moderate Wear 16–25%, Degraded >25%) to track cell efficiency over time.
 - **📊 Daily Discharge Rate Analytics**: Calculates actual daily battery consumption (`%/day`) based on rolling historical sync logs.
 - **⏳ Remaining Runtime Estimator**: Accurately projects remaining battery life in hours and days before reaching 0%.
 - **🩺 Battery Cell Health Rating**: Evaluates degradation by comparing actual daily drain against nominal baselines (12-15%/day for ~7-day runtime).
