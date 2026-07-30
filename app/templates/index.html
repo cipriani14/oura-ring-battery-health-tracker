@@ -764,35 +764,43 @@
                     actDate.innerText = data.activation_date;
                     actRow.classList.remove("hidden");
                     
-                    // Update history dropdown based on ring age
+                    // Update both chart dropdowns dynamically based on ring age
                     const ageDays = Math.max(1, Math.floor((new Date() - new Date(data.activation_date)) / (1000 * 60 * 60 * 24)));
-                    const select = document.getElementById("history-days-select");
-                    const currentVal = select.value;
-                    let optionsHTML = '';
                     
-                    if (ageDays >= 7) optionsHTML += `<option value="7">7 Days</option>`;
-                    if (ageDays >= 14) optionsHTML += `<option value="14">14 Days</option>`;
-                    if (ageDays >= 30) optionsHTML += `<option value="30">30 Days</option>`;
-                    if (ageDays >= 90) optionsHTML += `<option value="90">90 Days</option>`;
-                    
-                    if (ageDays > 0 && ageDays < 365) {
-                        optionsHTML += `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
-                    } else if (ageDays >= 365) {
-                        optionsHTML += `<option value="365">All History (1 Year+)</option>`;
-                    }
-                    
-                    if (!optionsHTML) optionsHTML = `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
-                    
-                    optionsHTML += `<option value="custom">Custom Range...</option>`;
-                    
-                    select.innerHTML = optionsHTML;
-                    if (currentVal && currentVal !== "custom" && Array.from(select.options).some(o => o.value === currentVal)) {
-                        select.value = currentVal;
-                    } else if (Array.from(select.options).some(o => o.value === "30")) {
-                        select.value = "30";
-                    } else {
-                        select.value = select.options[0].value;
-                    }
+                    const updateDropdown = (selectId) => {
+                        const select = document.getElementById(selectId);
+                        if (!select) return;
+                        const currentVal = select.value;
+                        let optionsHTML = '';
+                        
+                        if (ageDays >= 7) optionsHTML += `<option value="7">7 Days</option>`;
+                        if (ageDays >= 14) optionsHTML += `<option value="14">14 Days</option>`;
+                        if (ageDays >= 30) optionsHTML += `<option value="30">30 Days</option>`;
+                        if (ageDays >= 90) optionsHTML += `<option value="90">90 Days</option>`;
+                        
+                        if (ageDays > 0 && ageDays < 365) {
+                            optionsHTML += `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
+                        } else if (ageDays >= 365) {
+                            optionsHTML += `<option value="365">All History (1 Year+)</option>`;
+                        }
+                        
+                        if (!optionsHTML) optionsHTML = `<option value="${ageDays}">All History (${ageDays} Days)</option>`;
+                        optionsHTML += `<option value="custom">Custom Range...</option>`;
+                        
+                        select.innerHTML = optionsHTML;
+                        
+                        if (currentVal && currentVal !== "custom" && Array.from(select.options).some(o => o.value === currentVal)) {
+                            select.value = currentVal;
+                        } else if (Array.from(select.options).some(o => o.value === "30")) {
+                            select.value = "30";
+                        } else {
+                            // Default to All History or highest available preset if <30 days
+                            select.value = select.options[select.options.length - 2] ? select.options[select.options.length - 2].value : select.options[0].value;
+                        }
+                    };
+
+                    updateDropdown("history-days-select");
+                    updateDropdown("drain-days-select");
                 } else {
                     actRow.classList.add("hidden");
                 }
