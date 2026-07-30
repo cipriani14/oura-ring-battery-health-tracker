@@ -405,12 +405,19 @@
                         <span class="badge-tag tag-amber" style="font-size: 0.7rem;">🟡 16-25%/d Wear</span>
                         <span class="badge-tag tag-rose" style="font-size: 0.7rem;">🔴 &gt;25%/d Degraded</span>
                     </div>
-                    <select id="drain-days-select" onchange="fetchDrainRateHistory()" class="select-dropdown">
+                    <div id="drain-custom-date-picker" class="hidden" style="display: flex; gap: 0.35rem; align-items: center; background: rgba(30,41,59,0.5); padding: 0.25rem 0.5rem; border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.05);">
+                        <input type="date" id="drain-custom-start-date" class="input-field" style="padding: 0.15rem 0.25rem; font-size: 0.8rem; background: transparent; border: none; color: white;">
+                        <span style="color: var(--text-muted); font-size: 0.75rem;">to</span>
+                        <input type="date" id="drain-custom-end-date" class="input-field" style="padding: 0.15rem 0.25rem; font-size: 0.8rem; background: transparent; border: none; color: white;">
+                        <button onclick="applyDrainCustomDateRange()" class="btn btn-primary" style="padding: 0.15rem 0.5rem; font-size: 0.75rem; border-radius: 0.25rem;">Go</button>
+                    </div>
+                    <select id="drain-days-select" onchange="onDrainDaysChange()" class="select-dropdown">
                         <option value="7">7 Days</option>
                         <option value="14">14 Days</option>
                         <option value="30" selected>30 Days</option>
                         <option value="90">90 Days</option>
-                        <option value="365">1 Year</option>
+                        <option value="365">1 Year (All History)</option>
+                        <option value="custom">Custom Range...</option>
                     </select>
                 </div>
             </div>
@@ -879,10 +886,44 @@
             }
         }
 
+        function onDrainDaysChange() {
+            const val = document.getElementById("drain-days-select").value;
+            const customPicker = document.getElementById("drain-custom-date-picker");
+            if (val === "custom") {
+                customPicker.classList.remove("hidden");
+            } else {
+                customPicker.classList.add("hidden");
+                document.getElementById("drain-custom-start-date").value = "";
+                document.getElementById("drain-custom-end-date").value = "";
+                fetchDrainRateHistory();
+            }
+        }
+
+        function applyDrainCustomDateRange() {
+            const start = document.getElementById("drain-custom-start-date").value;
+            const end = document.getElementById("drain-custom-end-date").value;
+            if (start && end) {
+                fetchDrainRateHistory();
+            } else {
+                showToast("Please select both a start and end date.");
+            }
+        }
+
         async function fetchDrainRateHistory() {
-            const select = document.getElementById("drain-days-select");
-            const days = select ? select.value : 30;
-            let url = activeRingId ? `/api/battery/drain_rate_history?ring_id=${activeRingId}&days=${days}` : `/api/battery/drain_rate_history?days=${days}`;
+            const daysSelect = document.getElementById("drain-days-select").value;
+            let days = 30;
+            let url = activeRingId ? `/api/battery/drain_rate_history?ring_id=${activeRingId}` : `/api/battery/drain_rate_history?`;
+
+            if (daysSelect === "custom") {
+                const startDate = document.getElementById("drain-custom-start-date").value;
+                const endDate = document.getElementById("drain-custom-end-date").value;
+                if (!startDate || !endDate) return;
+                days = Math.max(1, Math.floor((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+                url += `&days=${days}`;
+            } else {
+                days = daysSelect;
+                url += `&days=${daysSelect}`;
+            }
 
             try {
                 const res = await fetch(url);
