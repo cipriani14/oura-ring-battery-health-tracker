@@ -14,14 +14,18 @@ from sqlalchemy.orm import Session
 
 from app.database import init_db, get_db, BatteryLog, ChargeEvent, RingDevice, SessionLocal
 from app.oura_client import OuraClient
+from app.security import encrypt_token, decrypt_token, mask_token
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("oura_battery_tracker")
 
+APP_VERSION = "v1.0.1"
+_release_cache = {"data": None, "timestamp": None}
+
 app = FastAPI(
     title="Oura Ring Battery & Health Monitor",
     description="Containerized app dedicated exclusively to Oura Ring battery tracking, discharge rates, and health diagnostics with multi-ring support and full historical backfill.",
-    version="2.4.0"
+    version=APP_VERSION
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -94,7 +98,8 @@ def merge_contiguous_charge_events(ring_id: int, db: Session) -> int:
 async def backfill_ring_history(ring: RingDevice, db: Session, days_back: int = 365) -> int:
     """Fetch and backfill full battery history from Oura API since setup date into SQLite."""
     try:
-        live = await oura_client.get_ring_battery(token_override=ring.pat_token, days_back=days_back)
+        plain_token = decrypt_token(ring.pat_token)
+        live = await oura_client.get_ring_battery(token_override=plain_token, days_back=days_back)
         items = live.get("data", [])
         if not items:
             return 0
@@ -258,10 +263,72 @@ async def app_status(db: Session = Depends(get_db)):
     rings_count = db.query(RingDevice).filter(RingDevice.is_active == True).count()
     return {
         "status": "online",
+        "version": APP_VERSION,
         "pat_configured": rings_count > 0,
         "ring_count": rings_count,
         "poll_interval_minutes": int(os.getenv("POLL_INTERVAL_MINUTES", "30")),
         "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+
+
+@app.get("/api/version")
+async def check_app_version():
+    """Checks local app version against latest GitHub release tag."""
+    now = datetime.utcnow()
+    cache_data = _release_cache.get("data")
+    cache_ts = _release_cache.get("timestamp")
+
+    # 6-hour in-memory cache for GitHub API requests
+    if not cache_data or not cache_ts or (now - cache_ts).total_seconds() > 21600:
+        try:
+            url = "https://api.github.com/repos/cipriani14/oura-ring-battery-health-tracker/releases/latest"
+            import httpx
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers={"User-Agent": "Oura-Battery-Tracker"}, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    tag = data.get("tag_name", APP_VERSION)
+                    _release_cache["data"] = {
+                        "latest_version": tag,
+                        "release_url": data.get("html_url", "https://github.com/cipriani14/oura-ring-battery-health-tracker/releases")
+                    }
+                    _release_cache["timestamp"] = now
+                else:
+                    _release_cache["data"] = {
+                        "latest_version": APP_VERSION,
+                        "release_url": "https://github.com/cipriani14/oura-ring-battery-health-tracker/releases"
+                    }
+                    _release_cache["timestamp"] = now
+        except Exception as e:
+            logger.debug(f"GitHub release check skipped: {e}")
+            if not _release_cache.get("data"):
+                _release_cache["data"] = {
+                    "latest_version": APP_VERSION,
+                    "release_url": "https://github.com/cipriani14/oura-ring-battery-health-tracker/releases"
+                }
+                _release_cache["timestamp"] = now
+
+    rel_info = _release_cache.get("data", {})
+    latest = rel_info.get("latest_version", APP_VERSION)
+    
+    curr_clean = APP_VERSION.lstrip("v")
+    latest_clean = latest.lstrip("v")
+    
+    update_available = False
+    try:
+        curr_parts = [int(x) for x in curr_clean.split(".")]
+        latest_parts = [int(x) for x in latest_clean.split(".")]
+        if latest_parts > curr_parts:
+            update_available = True
+    except Exception:
+        if latest != APP_VERSION:
+            update_available = True
+
+    return {
+        "current_version": APP_VERSION,
+        "latest_version": latest,
+        "update_available": update_available,
+        "release_url": rel_info.get("release_url", "https://github.com/cipriani14/oura-ring-battery-health-tracker/releases")
     }
 
 
@@ -331,7 +398,7 @@ async def register_ring(payload: Dict[str, Any], db: Session = Depends(get_db)):
         color_tag=color_tag,
         purchase_date=purchase_date,
         target_days=7.0,
-        pat_token=token,
+        pat_token=encrypt_token(token),
         hardware_type=hw_type,
         firmware_version=fw_ver,
         is_active=True
@@ -385,7 +452,7 @@ async def update_ring(ring_id: int, payload: Dict[str, Any], db: Session = Depen
         validation = await oura_client.validate_token(pat)
         if not validation.get("valid"):
             raise HTTPException(status_code=400, detail=validation.get("error", "Invalid PAT token."))
-        ring.pat_token = pat
+        ring.pat_token = encrypt_token(pat)
 
     db.commit()
     db.refresh(ring)
@@ -523,22 +590,24 @@ async def get_battery_metrics(ring_id: Optional[int] = Query(None), db: Session 
             activation_date = ring.purchase_date
 
     events = db.query(ChargeEvent).filter(ChargeEvent.ring_id == ring.id).order_by(ChargeEvent.start_time.asc()).all()
-    avg_interval = round(100.0 / (discharge_rate if discharge_rate > 0 else 14.3), 1)
-    avg_duration = 75
+    
+    # Calculate real historical duration average
+    durations = [ev.duration_minutes for ev in events if ev.duration_minutes and ev.duration_minutes > 0]
+    avg_duration = int(round(sum(durations) / len(durations))) if durations else 75
 
-    if events:
-        durations = [ev.duration_minutes for ev in events if ev.duration_minutes and ev.duration_minutes > 0]
-        if durations:
-            avg_duration = int(sum(durations) / len(durations))
+    # Calculate real historical interval average between consecutive charges
+    avg_interval = None
+    if len(events) >= 2:
+        intervals = [
+            (events[i+1].start_time - events[i].start_time).total_seconds() / 86400.0
+            for i in range(len(events) - 1)
+        ]
+        valid_intervals = [inv for inv in intervals if inv > 0.5]
+        if valid_intervals:
+            avg_interval = round(sum(valid_intervals) / len(valid_intervals), 1)
 
-        if len(events) >= 2:
-            intervals = [
-                (events[i+1].start_time - events[i].start_time).total_seconds() / 86400.0
-                for i in range(len(events) - 1)
-            ]
-            valid_intervals = [inv for inv in intervals if inv > 0.5]
-            if valid_intervals:
-                avg_interval = round(sum(valid_intervals) / len(valid_intervals), 1)
+    if avg_interval is None:
+        avg_interval = round(100.0 / (discharge_rate if discharge_rate > 0 else 14.3), 1)
 
     return {
         "ring_id": ring.id,
@@ -796,12 +865,12 @@ async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = 
                     "charge_speed_pct_per_hr": 58.7
                 }
             ],
-            "avg_charge_interval_days": 5.4,
-            "avg_charge_duration_minutes": 68,
+            "avg_charge_interval_days": 7.9,
+            "avg_charge_duration_minutes": 107,
             "is_mock": True
         }
 
-    events = db.query(ChargeEvent).filter(ChargeEvent.ring_id == ring.id).order_by(ChargeEvent.start_time.desc()).all()
+    events = db.query(ChargeEvent).filter(ChargeEvent.ring_id == ring.id).order_by(ChargeEvent.start_time.asc()).all()
     formatted = []
     durations = []
     
@@ -810,7 +879,9 @@ async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = 
         if ev.duration_minutes and ev.duration_minutes > 0 and ev.end_level and ev.start_level:
             gained = ev.end_level - ev.start_level
             speed = round((gained / ev.duration_minutes) * 60.0, 1)
+        if ev.duration_minutes and ev.duration_minutes > 0:
             durations.append(ev.duration_minutes)
+
         formatted.append({
             "id": ev.id,
             "start_time": ev.start_time.isoformat() + "Z",
@@ -821,18 +892,23 @@ async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = 
             "charge_speed_pct_per_hr": speed
         })
 
-    avg_duration_mins = int(sum(durations) / len(durations)) if durations else 75
-    avg_interval_days = 7.0
+    # Reverse formatted so table displays newest sessions first
+    formatted.reverse()
 
-    sorted_events = sorted(events, key=lambda x: x.start_time)
-    if len(sorted_events) >= 2:
+    avg_duration_mins = int(round(sum(durations) / len(durations))) if durations else 75
+    avg_interval_days = None
+
+    if len(events) >= 2:
         intervals = [
-            (sorted_events[i+1].start_time - sorted_events[i].start_time).total_seconds() / 86400.0
-            for i in range(len(sorted_events) - 1)
+            (events[i+1].start_time - events[i].start_time).total_seconds() / 86400.0
+            for i in range(len(events) - 1)
         ]
         valid_intervals = [inv for inv in intervals if inv > 0.5]
         if valid_intervals:
             avg_interval_days = round(sum(valid_intervals) / len(valid_intervals), 1)
+
+    if avg_interval_days is None:
+        avg_interval_days = 7.0
 
     return {
         "charges": formatted,

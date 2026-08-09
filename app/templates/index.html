@@ -176,14 +176,18 @@
                     <svg class="icon-inline" style="width: 1.5rem; height: 1.5rem;" viewBox="0 0 24 24"><path d="M22 11v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path><path d="M6 7v10"></path><path d="M10 7v10"></path><path d="M14 7v10"></path></svg>
                 </div>
                 <div>
-                    <h1 class="brand-title">
+                    <h1 class="brand-title" style="display: flex; align-items: center; gap: 0.5rem;">
                         Oura Battery Diagnostics
+                        <span id="app-version-badge" class="badge-tag tag-blue" style="font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 0.35rem; text-transform: uppercase;">v1.0.1</span>
                     </h1>
                     <p class="brand-subtitle">Battery Life, Health Index & Discharge Rate Analytics</p>
                 </div>
             </div>
 
             <div class="header-controls">
+                <a id="update-nav-badge" href="https://github.com/cipriani14/oura-ring-battery-health-tracker/releases" target="_blank" class="hidden badge-tag tag-amber" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; padding: 0.35rem 0.65rem; border-radius: 0.5rem;">
+                    🚀 Update Available: <span id="latest-ver-text">v1.0.2</span>
+                </a>
                 <!-- Ring Selector Dropdown -->
                 <select id="active-ring-select" onchange="onRingSelectionChange()" class="ring-select">
                     <option value="">Loading rings...</option>
@@ -703,11 +707,34 @@
         }
 
         async function refreshBatteryData() {
+            checkAppVersion();
             await fetchMetrics();
             fetchBatteryHistory();
             fetchDrainRateHistory();
             fetchCharges();
             fetchMultiRingComparison();
+        }
+
+        async function checkAppVersion() {
+            try {
+                const res = await fetch("/api/version");
+                const data = await res.json();
+                if (data.current_version) {
+                    const vBadge = document.getElementById("app-version-badge");
+                    if (vBadge) vBadge.innerText = data.current_version;
+                }
+                if (data.update_available) {
+                    const badge = document.getElementById("update-nav-badge");
+                    const txt = document.getElementById("latest-ver-text");
+                    if (txt) txt.innerText = data.latest_version;
+                    if (badge) {
+                        badge.href = data.release_url || "https://github.com/cipriani14/oura-ring-battery-health-tracker/releases";
+                        badge.classList.remove("hidden");
+                    }
+                }
+            } catch (e) {
+                console.debug("Version check notice:", e);
+            }
         }
 
         async function triggerBackfill() {

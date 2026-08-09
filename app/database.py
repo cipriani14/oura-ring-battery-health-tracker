@@ -97,6 +97,7 @@ def init_db():
                 conn.commit()
 
         # Seed primary ring if PAT exists in environment and no rings registered
+        from app.security import encrypt_token
         pat = os.getenv("OURA_PAT")
         ring_count = db.query(RingDevice).count()
         if ring_count == 0 and pat:
@@ -105,7 +106,7 @@ def init_db():
                 label="Primary Ring",
                 emoji="💍",
                 color_tag="teal",
-                pat_token=pat,
+                pat_token=encrypt_token(pat),
                 hardware_type="Oura Ring",
                 firmware_version="Latest"
             )
@@ -116,6 +117,13 @@ def init_db():
             db.query(BatteryLog).filter(BatteryLog.ring_id.is_(None)).update({"ring_id": 1})
             db.query(ChargeEvent).filter(ChargeEvent.ring_id.is_(None)).update({"ring_id": 1})
             db.commit()
+
+        # Encrypt any existing unencrypted PAT tokens in database
+        rings = db.query(RingDevice).all()
+        for r in rings:
+            if r.pat_token and not r.pat_token.startswith("enc_v1:"):
+                r.pat_token = encrypt_token(r.pat_token)
+        db.commit()
     except Exception as e:
         print(f"Database migration notice: {e}")
     finally:

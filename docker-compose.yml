@@ -15,7 +15,7 @@ services:
       - POLL_INTERVAL_MINUTES=60
       - PORT=8000
     volumes:
-      - oura_data:/data
+      - ./data:/data
       - ./app:/app/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
@@ -23,9 +23,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-
-
-volumes:
-  oura_data:
-    driver: local

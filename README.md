@@ -1,7 +1,8 @@
 # Oura Ring Battery Health & Power Tracker
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-teal.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/Version-v1.0.1-teal.svg" alt="Version: v1.0.1">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white" alt="Docker Ready">
@@ -24,12 +25,15 @@ A specialized, lightweight web application built to monitor, analyze, and diagno
 
 - **⚡ Real-Time Battery State**: Displays live battery percentage, charging state (`normal`, `low`, `charging`, `full`), hardware generation, and firmware version.
 - **📉 Daily Drain Rate Line Graph (%/day)**: Dedicated Chart.js line graph plotting net daily power consumption over 7, 14, 30, or 90 days with color-coded baseline bands (Healthy <16%, Moderate Wear 16–25%, Degraded >25%) to track cell efficiency over time.
+- **⏱️ Recharge Cycle & Duration Metrics**: Computes average days between charges and average time to charge per session.
+- **🔌 Multi-Stage Charge Merger**: Automatically consolidates multi-hour charging sessions into single unified charge events.
 - **📊 Daily Discharge Rate Analytics**: Calculates actual daily battery consumption (`%/day`) based on rolling historical sync logs.
 - **⏳ Remaining Runtime Estimator**: Accurately projects remaining battery life in hours and days before reaching 0%.
 - **🩺 Battery Cell Health Rating**: Evaluates degradation by comparing actual daily drain against nominal baselines (12-15%/day for ~7-day runtime).
-- **📈 Discharge & Recharge Curves**: Interactive Chart.js graphs displaying continuous battery level history over 7, 14, or 30 days, highlighting recharge events.
+- **📈 Discharge & Recharge Curves**: Interactive Chart.js graphs displaying continuous battery level history over 7, 14, 30, or 90 days.
 - **💍 Multi-Ring Support**: Manage and monitor multiple Oura rings simultaneously with custom labels, emojis, color tags, purchase dates, and individual target runtimes.
-- **🔌 Charge Event Tracking**: Automatically logs start/end battery percentages, charge duration (minutes), and charge frequency.
+- **🔒 Database Token Encryption at Rest**: Encrypts stored Oura Personal Access Tokens in SQLite using `SECRET_KEY` / `ENCRYPTION_KEY` and masks tokens in application logs.
+- **🚀 Automatic GitHub Release Update Checker**: Built-in `v1.0.1` versioning that notifies you directly in the dashboard when a new release tag is published on GitHub.
 - **🛡️ 100% Self-Hosted & Private**: Runs locally on your machine, server, or Docker container with persistent SQLite storage (`oura_tracker.db`).
 
 ---
