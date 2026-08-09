@@ -37,7 +37,58 @@ oura_client = OuraClient()
 def on_startup():
     init_db()
     logger.info("Database initialized for Multi-Ring Battery Monitoring with Full Historical Backfilling.")
+    db = SessionLocal()
+    try:
+        rings = db.query(RingDevice).filter(RingDevice.is_active == True).all()
+        for ring in rings:
+            merge_contiguous_charge_events(ring.id, db)
+    except Exception as e:
+        logger.warning(f"Startup charge consolidation notice: {e}")
+    finally:
+        db.close()
     asyncio.create_task(background_battery_poller())
+
+
+def merge_contiguous_charge_events(ring_id: int, db: Session) -> int:
+    """Merges fragmented/contiguous charge events for a ring into single unified sessions."""
+    try:
+        events = db.query(ChargeEvent).filter(
+            ChargeEvent.ring_id == ring_id
+        ).order_by(ChargeEvent.start_time.asc()).all()
+
+        if len(events) < 2:
+            return 0
+
+        merged_count = 0
+        i = 0
+        while i < len(events) - 1:
+            current_ev = events[i]
+            next_ev = events[i + 1]
+
+            time_gap = (next_ev.start_time - (current_ev.end_time or current_ev.start_time)).total_seconds()
+            level_gap = abs(next_ev.start_level - (current_ev.end_level or current_ev.start_level))
+
+            # If next charge event started within 60 mins of current event's end, OR start levels match end levels
+            if (0 <= time_gap <= 3600) or (time_gap < 0) or (level_gap <= 5 and time_gap <= 7200):
+                # Consolidate into current_ev
+                current_ev.end_time = next_ev.end_time or next_ev.start_time
+                current_ev.end_level = max(current_ev.end_level or 0, next_ev.end_level or next_ev.start_level)
+                if current_ev.end_time and current_ev.start_time:
+                    current_ev.duration_minutes = max(1, int((current_ev.end_time - current_ev.start_time).total_seconds() / 60))
+                
+                db.delete(next_ev)
+                events.pop(i + 1)
+                merged_count += 1
+            else:
+                i += 1
+
+        if merged_count > 0:
+            db.commit()
+            logger.info(f"Consolidated {merged_count} fragmented charge events for ring_id {ring_id}")
+        return merged_count
+    except Exception as e:
+        logger.warning(f"Error merging charge events for ring_id {ring_id}: {e}")
+        return 0
 
 
 async def backfill_ring_history(ring: RingDevice, db: Session, days_back: int = 365) -> int:
@@ -166,6 +217,8 @@ async def backfill_ring_history(ring: RingDevice, db: Session, days_back: int = 
         if inserted > 0:
             db.commit()
             logger.info(f"Backfilled {inserted} historical battery records for ring '{ring.label}'")
+        
+        merge_contiguous_charge_events(ring.id, db)
         return inserted
     except Exception as e:
         logger.warning(f"Error backfilling history for ring '{ring.label}': {e}")
@@ -182,57 +235,9 @@ async def background_battery_poller():
                 rings = db.query(RingDevice).filter(RingDevice.is_active == True).all()
                 for ring in rings:
                     try:
-                        count = db.query(BatteryLog).filter(BatteryLog.ring_id == ring.id).count()
-                        if count < 5:
-                            await backfill_ring_history(ring, db, days_back=365)
-
-                        data = await oura_client.get_ring_battery(token_override=ring.pat_token, days_back=7)
-                        items = data.get("data", [])
-                        if items:
-                            latest = items[-1] if isinstance(items, list) else items
-                            level = latest.get("battery_level", 0)
-                            status = latest.get("battery_status", "normal")
-                            is_charging = (status == "charging") or (status == "full")
-                            hw = latest.get("hardware_type")
-                            fw = latest.get("firmware_version")
-                            set_up_at = latest.get("set_up_at", "")
-
-                            if hw and ring.hardware_type != hw:
-                                ring.hardware_type = hw
-                            if fw and ring.firmware_version != fw:
-                                ring.firmware_version = fw
-                            
-                            # Auto-detect purchase/setup date if empty
-                            if set_up_at and not ring.purchase_date:
-                                try:
-                                    dt_setup = datetime.fromisoformat(set_up_at.replace("Z", "+00:00"))
-                                    ring.purchase_date = dt_setup.strftime("%Y-%m-%d")
-                                except Exception:
-                                    pass
-
-                            prev_log = db.query(BatteryLog).filter(BatteryLog.ring_id == ring.id).order_by(BatteryLog.timestamp.desc()).first()
-                            if prev_log and level > prev_log.battery_level + 10:
-                                event = ChargeEvent(
-                                    ring_id=ring.id,
-                                    start_time=prev_log.timestamp,
-                                    end_time=datetime.utcnow(),
-                                    start_level=prev_log.battery_level,
-                                    end_level=level,
-                                    duration_minutes=int((datetime.utcnow() - prev_log.timestamp).total_seconds() / 60)
-                                )
-                                db.add(event)
-
-                            log_entry = BatteryLog(
-                                ring_id=ring.id,
-                                battery_level=level,
-                                battery_status=status,
-                                is_charging=is_charging,
-                                firmware_version=fw,
-                                hardware_type=hw
-                            )
-                            db.add(log_entry)
-                            db.commit()
-                            logger.info(f"Recorded battery log for {ring.label} (ID: {ring.id}): {level}% ({status})")
+                        # Comprehensive background ingestion of all battery samples and charge events for last 7 days
+                        inserted = await backfill_ring_history(ring, db, days_back=7)
+                        merge_contiguous_charge_events(ring.id, db)
                     except Exception as ring_err:
                         logger.error(f"Error polling battery for ring '{ring.label}': {ring_err}")
             finally:
