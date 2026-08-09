@@ -438,6 +438,35 @@
                 </div>
             </div>
 
+            <!-- Charge Cycle Summary Metrics -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+                <div style="background: rgba(30,41,59,0.6); border: 1px solid var(--border-color); border-radius: 0.875rem; padding: 0.85rem 1.15rem; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Avg Days Between Charges</span>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: #fff; margin-top: 0.15rem; display: flex; align-items: baseline; gap: 0.35rem;">
+                            <span id="stat-avg-interval">--</span>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">days</span>
+                        </div>
+                    </div>
+                    <div class="card-icon-wrapper icon-teal" style="padding: 0.6rem;">
+                        <svg class="icon-inline" style="width: 1.25rem; height: 1.25rem;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
+                </div>
+
+                <div style="background: rgba(30,41,59,0.6); border: 1px solid var(--border-color); border-radius: 0.875rem; padding: 0.85rem 1.15rem; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Avg Time to Charge</span>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: #fff; margin-top: 0.15rem; display: flex; align-items: baseline; gap: 0.35rem;">
+                            <span id="stat-avg-duration">--</span>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">mins</span>
+                        </div>
+                    </div>
+                    <div class="card-icon-wrapper icon-amber" style="padding: 0.6rem;">
+                        <svg class="icon-inline" style="width: 1.25rem; height: 1.25rem;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                </div>
+            </div>
+
             <div class="table-wrapper">
                 <table class="data-table">
                     <thead>
@@ -975,6 +1004,11 @@
                 const data = await res.json();
                 const charges = data.charges || [];
                 const tbody = document.getElementById("charge-history-tbody");
+
+                const statInterval = document.getElementById("stat-avg-interval");
+                const statDuration = document.getElementById("stat-avg-duration");
+                if (statInterval) statInterval.innerText = data.avg_charge_interval_days || '5.4';
+                if (statDuration) statDuration.innerText = data.avg_charge_duration_minutes || '68';
 
                 if (charges.length === 0) {
                     const msg = !data.is_mock 

@@ -522,6 +522,24 @@ async def get_battery_metrics(ring_id: Optional[int] = Query(None), db: Session 
         except Exception:
             activation_date = ring.purchase_date
 
+    events = db.query(ChargeEvent).filter(ChargeEvent.ring_id == ring.id).order_by(ChargeEvent.start_time.asc()).all()
+    avg_interval = round(100.0 / (discharge_rate if discharge_rate > 0 else 14.3), 1)
+    avg_duration = 75
+
+    if events:
+        durations = [ev.duration_minutes for ev in events if ev.duration_minutes and ev.duration_minutes > 0]
+        if durations:
+            avg_duration = int(sum(durations) / len(durations))
+
+        if len(events) >= 2:
+            intervals = [
+                (events[i+1].start_time - events[i].start_time).total_seconds() / 86400.0
+                for i in range(len(events) - 1)
+            ]
+            valid_intervals = [inv for inv in intervals if inv > 0.5]
+            if valid_intervals:
+                avg_interval = round(sum(valid_intervals) / len(valid_intervals), 1)
+
     return {
         "ring_id": ring.id,
         "label": ring.label,
@@ -536,6 +554,8 @@ async def get_battery_metrics(ring_id: Optional[int] = Query(None), db: Session 
         "is_calculated": is_calculated,
         "est_hours_remaining": int(est_days * 24),
         "est_days_remaining": est_days,
+        "avg_charge_interval_days": avg_interval,
+        "avg_charge_duration_minutes": avg_duration,
         "battery_health_rating": health_rating,
         "firmware_version": latest_db.firmware_version or ring.firmware_version or "Latest",
         "hardware_type": latest_db.hardware_type or ring.hardware_type or "Oura Ring",
@@ -776,16 +796,21 @@ async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = 
                     "charge_speed_pct_per_hr": 58.7
                 }
             ],
+            "avg_charge_interval_days": 5.4,
+            "avg_charge_duration_minutes": 68,
             "is_mock": True
         }
 
     events = db.query(ChargeEvent).filter(ChargeEvent.ring_id == ring.id).order_by(ChargeEvent.start_time.desc()).all()
     formatted = []
+    durations = []
+    
     for ev in events:
         speed = 0.0
         if ev.duration_minutes and ev.duration_minutes > 0 and ev.end_level and ev.start_level:
             gained = ev.end_level - ev.start_level
             speed = round((gained / ev.duration_minutes) * 60.0, 1)
+            durations.append(ev.duration_minutes)
         formatted.append({
             "id": ev.id,
             "start_time": ev.start_time.isoformat() + "Z",
@@ -796,7 +821,25 @@ async def get_charge_events(ring_id: Optional[int] = Query(None), db: Session = 
             "charge_speed_pct_per_hr": speed
         })
 
-    return {"charges": formatted, "is_mock": False}
+    avg_duration_mins = int(sum(durations) / len(durations)) if durations else 75
+    avg_interval_days = 7.0
+
+    sorted_events = sorted(events, key=lambda x: x.start_time)
+    if len(sorted_events) >= 2:
+        intervals = [
+            (sorted_events[i+1].start_time - sorted_events[i].start_time).total_seconds() / 86400.0
+            for i in range(len(sorted_events) - 1)
+        ]
+        valid_intervals = [inv for inv in intervals if inv > 0.5]
+        if valid_intervals:
+            avg_interval_days = round(sum(valid_intervals) / len(valid_intervals), 1)
+
+    return {
+        "charges": formatted,
+        "avg_charge_interval_days": avg_interval_days,
+        "avg_charge_duration_minutes": avg_duration_mins,
+        "is_mock": False
+    }
 
 
 @app.get("/api/rings/comparison")
